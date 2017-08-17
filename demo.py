@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 def test():
 
-    model_file = 'demo/VGGnet_fast_rcnn_iter_70000.h5'
+    model_file = '/localdata/arnold/VGGnet_fast_rcnn_iter_70000.h5'
     detector = FasterRCNN()
     network.load_net(model_file, detector)
     detector.cuda()
@@ -19,14 +19,20 @@ def test():
     cv2.namedWindow('demo', cv2.WINDOW_NORMAL)
 
     while True:
-        # im_file = 'data/VOCdevkit2007/VOC2007/JPEGImages/009036.jpg'
+        # opencv keeps a weird buffer, empty it
+        for _ in range(5):
+            cap.grab()
+
         ret, image_webcacm = cap.read()
         image = cv2.resize(image_webcacm, (800, 600))
+        print(image.shape)
 
         cv2.imshow('demo', image)
 
         score, prob, boxes = detector.run_rpn(image)
         
+        # fg/bg x rgb x scale x h x w
+        # h and w will vary depending on the input size
         prob_tens = prob.squeeze().reshape((2,3,3,37,50))
 
         for scale in [0,1,2]:
