@@ -79,6 +79,22 @@ class RPN(nn.Module):
 
         return features, rois
 
+    def fg_score(self, im_data, im_info):
+    	im_data = network.np_to_variable(im_data, is_cuda=True)
+        im_data = im_data.permute(0, 3, 1, 2)
+        features = self.features(im_data)
+
+        rpn_conv1 = self.conv1(features)
+
+        # rpn score
+        rpn_cls_score = self.score_conv(rpn_conv1)
+        rpn_cls_score_reshape = self.reshape_layer(rpn_cls_score, 2)
+        rpn_cls_prob = F.softmax(rpn_cls_score_reshape)
+
+        rpn_bbox_pred = self.bbox_conv(rpn_conv1)
+
+        return rpn_cls_score_reshape, rpn_cls_prob, rpn_bbox_pred
+
     def build_loss(self, rpn_cls_score_reshape, rpn_bbox_pred, rpn_data):
         # classification loss
         rpn_cls_score = rpn_cls_score_reshape.permute(0, 2, 3, 1).contiguous().view(-1, 2)
@@ -317,6 +333,16 @@ class FasterRCNN(nn.Module):
             pred_boxes, scores, inds = nms_detections(pred_boxes, scores, 0.3, inds=inds)
 
         return pred_boxes, scores, self.classes[inds]
+
+    def run_rpn(self, image):
+    	im_data, im_scales = self.get_image_blob(image)
+        im_info = np.array(
+            [[im_data.shape[1], im_data.shape[2], im_scales[0]]],
+            dtype=np.float32)
+
+        score, prob, rois = self.rpn.fg_score(im_data, im_info)
+
+        return score.data.cpu().numpy(), prob.data.cpu().numpy(), rois.data.cpu().numpy()
 
     def detect(self, image, thr=0.3):
         im_data, im_scales = self.get_image_blob(image)
